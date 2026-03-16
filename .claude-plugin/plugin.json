@@ -1,0 +1,9 @@
+{
+  "name": "win11-statusline",
+  "version": "1.0.0",
+  "description": "Windows-native status line for Claude Code - shows model, git status, context usage, and last message. No jq required.",
+  "author": {
+    "name": "yangw"
+  },
+  "keywords": ["windows", "win11", "statusline", "context-bar", "status"]
+}
