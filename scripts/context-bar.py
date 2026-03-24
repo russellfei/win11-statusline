@@ -22,7 +22,7 @@ COLOR = "orange"
 # ── ANSI 256 color codes ────────────────────────────────────────────────────
 C_RESET = "\033[0m"
 C_GRAY = "\033[38;5;245m"
-C_BAR_EMPTY = "\033[38;5;238m"
+C_DIM = "\033[38;5;238m"
 
 THEMES = {
     "orange":   "\033[38;5;173m",
@@ -120,32 +120,30 @@ def format_fetch_age(cwd):
         return ""
 
 
-def build_progress_bar(pct, bar_width=10):
-    """Build a 3-level progress bar: full █, half ▄, empty ░."""
-    pct = max(0, min(100, pct))
-    bar = ""
-    for i in range(bar_width):
-        bar_start = i * 10
-        progress = pct - bar_start
-        if progress >= 8:
-            bar += f"{C_ACCENT}\u2588{C_RESET}"   # █ full
-        elif progress >= 3:
-            bar += f"{C_ACCENT}\u2584{C_RESET}"   # ▄ half
-        else:
-            bar += f"{C_BAR_EMPTY}\u2591{C_RESET}" # ░ empty
-    return bar
-
-
 def get_context_info(data, transcript_path):
-    """Calculate context percentage and build the bar string."""
+    """Calculate context percentage as simple text."""
     max_context = 200000
     try:
         cw = data.get("context_window", {})
         max_context = int(cw.get("context_window_size", 200000))
     except (TypeError, ValueError):
         pass
-    max_k = max_context // 1000
 
+    # Human-readable max label
+    if max_context >= 1000000:
+        max_label = f"{max_context // 1000000}M"
+    else:
+        max_label = f"{max_context // 1000}k"
+
+    # Try pre-calculated percentage first
+    cw = data.get("context_window", {})
+    pct = cw.get("used_percentage") if isinstance(cw, dict) else None
+
+    if pct is not None:
+        pct = max(0, min(100, int(pct)))
+        return f"{C_GRAY}{pct}% of {max_label}"
+
+    # Fallback: calculate from transcript
     context_length = 0
     pct_prefix = "~"
     baseline = 20000
@@ -160,8 +158,43 @@ def get_context_info(data, transcript_path):
         pct = baseline * 100 // max_context
 
     pct = max(0, min(100, pct))
-    bar = build_progress_bar(pct)
-    return f"{bar} {C_GRAY}{pct_prefix}{pct}% of {max_k}k tokens"
+    return f"{C_GRAY}{pct_prefix}{pct}% of {max_label}"
+
+
+def get_quota_info(data):
+    """Extract rate limit / quota remaining info."""
+    rate_limits = data.get("rate_limits")
+    if not rate_limits or not isinstance(rate_limits, dict):
+        return ""
+
+    parts = []
+    now = time.time()
+
+    for key, label in [("five_hour", "5h"), ("seven_day", "7d")]:
+        rl = rate_limits.get(key)
+        if not rl or not isinstance(rl, dict):
+            continue
+        used = rl.get("used_percentage")
+        if used is None:
+            continue
+        remaining = max(0, round(100 - float(used)))
+
+        resets_at = rl.get("resets_at")
+        if resets_at and resets_at > now:
+            diff = int(resets_at - now)
+            if diff < 3600:
+                reset_str = f"{diff // 60}m"
+            else:
+                h = diff // 3600
+                m = (diff % 3600) // 60
+                reset_str = f"{h}h{m:02d}m"
+            parts.append(f"{label}: {remaining}% ({reset_str})")
+        else:
+            parts.append(f"{label}: {remaining}%")
+
+    if not parts:
+        return ""
+    return f"{C_DIM}\u00b7 " + f" \u00b7 ".join(parts)
 
 
 def calc_tokens_from_transcript(transcript_path):
@@ -263,23 +296,28 @@ def main():
     transcript_path = data.get("transcript_path", "")
     ctx = get_context_info(data, transcript_path)
 
-    # Line 1: Model | Dir | Git | Context
-    parts = [f"{C_ACCENT}{model}{C_GRAY}", f"\U0001f4c1{dirname}"]
+    quota = get_quota_info(data)
+
+    # Line 1: Model | Dir | Git | Context | Quota
+    parts = [f"{C_ACCENT}{model}{C_GRAY}", f"\u2302 {dirname}"]
     if branch:
-        parts.append(f"\U0001f500{branch} {git_status}")
-    parts.append(ctx + C_RESET)
+        parts.append(f"\u2387 {branch} {git_status}")
+    parts.append(ctx)
     line1 = " | ".join(parts)
+    if quota:
+        line1 += f" {quota}"
+    line1 += C_RESET
     print(line1, flush=True)
 
     # Line 2: Last user message (calculate max_len from plain text width)
-    plain = f"{model} | \U0001f4c1{dirname}"
+    plain = f"{model} | \u2302 {dirname}"
     if branch:
-        plain += f" | \U0001f500{branch} {git_status}"
-    plain += f" | xxxxxxxxxx ?% of ???k tokens"
+        plain += f" | \u2387 {branch} {git_status}"
+    plain += f" | ?% of ?M . 5h: ??% (??h??m) . 7d: ??%"
     max_len = len(plain)
     last_msg = get_last_user_message(transcript_path, max_len)
     if last_msg:
-        print(f"\U0001f4ac {last_msg}", flush=True)
+        print(f"\u276f {last_msg}", flush=True)
 
 
 if __name__ == "__main__":
