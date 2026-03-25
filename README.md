@@ -7,8 +7,8 @@ Inspired by [ykdojo/claude-code-tips](https://github.com/ykdojo/claude-code-tips
 ## Preview
 
 ```
-Opus 4.6 | 📁project-dir | 🔀main (2 files uncommitted, synced 5m ago) | ██▄░░░░░░░ 25% of 200k tokens
-💬 last user message here...
+Opus 4.6 | ⌂ project-dir | ⎇ main (2 files uncommitted, synced 5m ago) | 25% of 1M · 5h: 76% (2h13m) · 7d: 59%
+❯ last user message here...
 ```
 
 ## Requirements
@@ -80,12 +80,13 @@ Edit the `COLOR` variable at the top of `scripts/context-bar.py`:
 
 **Line 1:**
 - Model name (e.g., `Opus 4.6`)
-- Current directory name
-- Git branch + uncommitted file count + sync status
-- Context usage bar (10-cell, 3-level: █ full, ▄ half, ░ empty)
+- `⌂` Current directory name
+- `⎇` Git branch + uncommitted file count + sync status
+- Context window usage percentage (e.g., `25% of 1M`)
+- Quota remaining — 5-hour and 7-day rate limits with reset countdown (Claude Pro/Max only)
 
 **Line 2:**
-- Last user message from the conversation transcript
+- `❯` Last user message from the conversation transcript
 
 ## How It Works
 
